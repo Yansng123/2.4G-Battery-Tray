@@ -271,6 +271,18 @@ namespace BatteryTray
                 }
             }
 
+            // 充电判据：插上电源线时，键盘本体会以 258A:00A6（SINO WEALTH "Gaming KB"）挂到 USB 上，
+            // 拔掉后立刻消失。接收器那份状态块自己不区分充放电，只能用这个来判断。
+            bool rkCharging = false;
+            for (int i = 0; i < interfaces.Count; i++)
+            {
+                if (interfaces[i].VendorId == RkWiredVendorId && interfaces[i].ProductId == RkWiredProductId)
+                {
+                    rkCharging = true;
+                    break;
+                }
+            }
+
             for (int i = 0; i < interfaces.Count; i++)
             {
                 HidInterface iface = interfaces[i];
@@ -299,7 +311,10 @@ namespace BatteryTray
                     {
                         reading.Percent = BatteryCurve.Clamp(percent);
                         reading.Raw = raw;
-                        reading.State = BatteryState.Unknown;
+                        // 插着线就是充电中（图标画闪电），拔掉后自动回 2.4G，这时显示接收器给的电量。
+                        reading.State = rkCharging
+                            ? (percent >= 100 ? BatteryState.Full : BatteryState.Charging)
+                            : BatteryState.Discharging;
                     }
                     else
                     {
@@ -394,6 +409,10 @@ namespace BatteryTray
                 && iface.OutputLength >= 7
                 && iface.InputLength >= 7;
         }
+
+        // 键盘本体走 USB 线时的 VID/PID（SINO WEALTH "Gaming KB"），只在接电源线时出现。
+        private const ushort RkWiredVendorId = 0x258A;
+        private const ushort RkWiredProductId = 0x00A6;
 
         private static bool IsRkFeature(HidInterface iface)
         {

@@ -66,6 +66,47 @@ namespace BatteryTray
             }
             sb.AppendLine();
 
+            sb.AppendLine("== RK 键盘 ==");
+            bool rkWired = false;
+            for (int i = 0; i < interfaces.Count; i++)
+            {
+                if (interfaces[i].VendorId == 0x258A && interfaces[i].ProductId == 0x00A6)
+                {
+                    rkWired = true;
+                    break;
+                }
+            }
+            sb.AppendLine("有线本体 258A:00A6 出现：" + (rkWired ? "是 → 判定为充电中" : "否 → 判定为放电中"));
+            for (int i = 0; i < interfaces.Count; i++)
+            {
+                HidInterface iface = interfaces[i];
+                if (iface.VendorId != 0x25A7 || iface.UsagePage != 0xFF02 || iface.Usage != 0x0002 || iface.FeatureLength <= 0)
+                {
+                    continue;
+                }
+                sb.AppendLine("RK 接口：" + iface.ToString());
+                RkCompx link = RkCompx.Open(iface);
+                if (link == null)
+                {
+                    sb.AppendLine("  打开失败，Win32 错误码：" + Marshal.GetLastWin32Error());
+                    continue;
+                }
+                try
+                {
+                    int percent;
+                    string raw;
+                    string error;
+                    bool ok = link.TryReadBattery(out percent, out raw, out error);
+                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                        "  ok={0} 电量={1}% 原始={2} {3}", ok, percent, raw, error));
+                }
+                finally
+                {
+                    link.Dispose();
+                }
+            }
+            sb.AppendLine();
+
             sb.AppendLine("== 索尼 DS5 手柄 ==");
             for (int i = 0; i < interfaces.Count; i++)
             {
