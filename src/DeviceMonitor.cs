@@ -14,6 +14,9 @@ namespace BatteryTray
         private static readonly object IndexCacheLock = new object();
         private static readonly Dictionary<string, List<byte>> IndexCache = new Dictionary<string, List<byte>>();
 
+        // RK 满电基准（settings.ini 里的 rkfull），缓存住免得每次扫描都读盘；-1 = 还没读过。
+        private static int _rkFullValue = -1;
+
         private readonly AutoResetEvent _wake = new AutoResetEvent(false);
         private readonly object _gate = new object();
         private Thread _thread;
@@ -167,6 +170,28 @@ namespace BatteryTray
             {
                 IndexCache.Clear();
             }
+            _rkFullValue = -1;
+        }
+
+        // 把接收器报的原始值按"满电基准"换算成百分比；rkfull=0 时原样返回。
+        private static int ScaleRkPercent(int rawValue)
+        {
+            int full = _rkFullValue;
+            if (full < 0)
+            {
+                full = Settings.Load().RkFullValue;
+                _rkFullValue = full;
+            }
+            if (full <= 0 || rawValue <= 0)
+            {
+                return rawValue;
+            }
+            int scaled = rawValue * 100 / full;
+            if (scaled > 100)
+            {
+                scaled = 100;
+            }
+            return scaled;
         }
 
         public static List<DeviceReading> ScanOnce()
@@ -309,11 +334,12 @@ namespace BatteryTray
                     reading.Updated = DateTime.Now;
                     if (link.TryReadBattery(out percent, out raw, out error))
                     {
-                        reading.Percent = BatteryCurve.Clamp(percent);
-                        reading.Raw = raw;
+                        int shown = ScaleRkPercent(percent);
+                        reading.Percent = BatteryCurve.Clamp(shown);
+                        reading.Raw = raw + (shown != percent ? "  (换算 " + percent + "→" + shown + "%)" : string.Empty);
                         // 插着线就是充电中（图标画闪电），拔掉后自动回 2.4G，这时显示接收器给的电量。
                         reading.State = rkCharging
-                            ? (percent >= 100 ? BatteryState.Full : BatteryState.Charging)
+                            ? (shown >= 100 ? BatteryState.Full : BatteryState.Charging)
                             : BatteryState.Discharging;
                     }
                     else

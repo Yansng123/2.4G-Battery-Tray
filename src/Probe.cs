@@ -77,6 +77,8 @@ namespace BatteryTray
                 }
             }
             sb.AppendLine("有线本体 258A:00A6 出现：" + (rkWired ? "是 → 判定为充电中" : "否 → 判定为放电中"));
+            int rkFull = Settings.Load().RkFullValue;
+            sb.AppendLine("满电基准 rkfull=" + (rkFull > 0 ? rkFull + "（该值按 100% 换算）" : "0（原样显示，不换算）"));
             for (int i = 0; i < interfaces.Count; i++)
             {
                 HidInterface iface = interfaces[i];
