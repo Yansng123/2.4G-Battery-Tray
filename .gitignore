@@ -1,0 +1,15 @@
+# 编译中间产物（本项目用 csc 直接输出到根目录，exe 是交付物，不忽略）
+bin/
+obj/
+*.pdb
+*.ilk
+
+# 编辑器 / 系统
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# 探针输出（tools/ds5_probe.py 跑出来的临时结果）
+ds5-probe*.txt
