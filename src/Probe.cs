@@ -66,49 +66,6 @@ namespace BatteryTray
             }
             sb.AppendLine();
 
-            sb.AppendLine("== RK 键盘 ==");
-            bool rkWired = false;
-            for (int i = 0; i < interfaces.Count; i++)
-            {
-                if (interfaces[i].VendorId == 0x258A && interfaces[i].ProductId == 0x00A6)
-                {
-                    rkWired = true;
-                    break;
-                }
-            }
-            sb.AppendLine("有线本体 258A:00A6 出现：" + (rkWired ? "是 → 判定为充电中" : "否 → 判定为放电中"));
-            int rkFull = Settings.Load().RkFullValue;
-            sb.AppendLine("满电基准 rkfull=" + (rkFull > 0 ? rkFull + "（该值按 100% 换算）" : "0（原样显示，不换算）"));
-            for (int i = 0; i < interfaces.Count; i++)
-            {
-                HidInterface iface = interfaces[i];
-                if (iface.VendorId != 0x25A7 || iface.UsagePage != 0xFF02 || iface.Usage != 0x0002 || iface.FeatureLength <= 0)
-                {
-                    continue;
-                }
-                sb.AppendLine("RK 接口：" + iface.ToString());
-                RkCompx link = RkCompx.Open(iface);
-                if (link == null)
-                {
-                    sb.AppendLine("  打开失败，Win32 错误码：" + Marshal.GetLastWin32Error());
-                    continue;
-                }
-                try
-                {
-                    int percent;
-                    string raw;
-                    string error;
-                    bool ok = link.TryReadBattery(out percent, out raw, out error);
-                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                        "  ok={0} 电量={1}% 原始={2} {3}", ok, percent, raw, error));
-                }
-                finally
-                {
-                    link.Dispose();
-                }
-            }
-            sb.AppendLine();
-
             sb.AppendLine("== 索尼 DS5 手柄 ==");
             for (int i = 0; i < interfaces.Count; i++)
             {
@@ -184,14 +141,14 @@ namespace BatteryTray
             sb.AppendLine();
             int runs = 8;
             int logitechOk = 0;
-            int rkOk = 0;
+            int ds5Ok = 0;
             for (int i = 0; i < runs; i++)
             {
                 System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
                 List<DeviceReading> list = DeviceMonitor.ScanOnce();
                 long ms = watch.ElapsedMilliseconds;
                 bool logitech = false;
-                bool rk = false;
+                bool ds5 = false;
                 string detail = string.Empty;
                 for (int k = 0; k < list.Count; k++)
                 {
@@ -204,26 +161,26 @@ namespace BatteryTray
                         logitech = true;
                         detail += " 罗技=" + percent;
                     }
-                    else if (reading.Kind == DeviceKind.Rk)
+                    else if (reading.Kind == DeviceKind.DualSense)
                     {
-                        rk = true;
-                        detail += " RK=" + percent;
+                        ds5 = true;
+                        detail += " DS5=" + percent;
                     }
                 }
                 if (logitech)
                 {
                     logitechOk++;
                 }
-                if (rk)
+                if (ds5)
                 {
-                    rkOk++;
+                    ds5Ok++;
                 }
                 sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                    "#{0} 用时={1} ms 罗技={2} RK={3}{4}", i + 1, ms, logitech, rk, detail));
+                    "#{0} 用时={1} ms 罗技={2} DS5={3}{4}", i + 1, ms, logitech, ds5, detail));
                 System.Threading.Thread.Sleep(1200);
             }
             sb.AppendLine();
-            sb.AppendLine("罗技成功 " + logitechOk + "/" + runs + "，RK 成功 " + rkOk + "/" + runs);
+            sb.AppendLine("罗技成功 " + logitechOk + "/" + runs + "，DS5 成功 " + ds5Ok + "/" + runs);
             WriteConsole(sb.ToString());
             WriteFile(sb.ToString());
         }

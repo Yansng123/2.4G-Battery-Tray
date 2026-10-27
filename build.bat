@@ -17,8 +17,7 @@ if not exist "%CSC%" (
     "%~dp0src\Model.cs" ^
     "%~dp0src\BatteryCurve.cs" ^
     "%~dp0src\LogitechHidpp.cs" ^
-    "%~dp0src\RkCompx.cs" ^
-    "%~dp0src\DualSenseHid.cs" ^
+        "%~dp0src\DualSenseHid.cs" ^
     "%~dp0src\DeviceMonitor.cs" ^
     "%~dp0src\Settings.cs" ^
     "%~dp0src\Autostart.cs" ^

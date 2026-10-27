@@ -14,8 +14,6 @@ namespace BatteryTray
         private static readonly object IndexCacheLock = new object();
         private static readonly Dictionary<string, List<byte>> IndexCache = new Dictionary<string, List<byte>>();
 
-        // RK 满电基准（settings.ini 里的 rkfull），缓存住免得每次扫描都读盘；-1 = 还没读过。
-        private static int _rkFullValue = -1;
 
         private readonly AutoResetEvent _wake = new AutoResetEvent(false);
         private readonly object _gate = new object();
@@ -133,7 +131,7 @@ namespace BatteryTray
             }
         }
 
-        // 只关心“有没有插电”，不关心具体电量；读不到状态的设备（RK、读取失败）不参与比较。
+        // 只关心"有没有插电"，不关心具体电量；读取失败、状态未知的设备不参与比较。
         private static string ChargeSignature(IList<DeviceReading> readings)
         {
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -170,28 +168,6 @@ namespace BatteryTray
             {
                 IndexCache.Clear();
             }
-            _rkFullValue = -1;
-        }
-
-        // 把接收器报的原始值按"满电基准"换算成百分比；rkfull=0 时原样返回。
-        private static int ScaleRkPercent(int rawValue)
-        {
-            int full = _rkFullValue;
-            if (full < 0)
-            {
-                full = Settings.Load().RkFullValue;
-                _rkFullValue = full;
-            }
-            if (full <= 0 || rawValue <= 0)
-            {
-                return rawValue;
-            }
-            int scaled = rawValue * 100 / full;
-            if (scaled > 100)
-            {
-                scaled = 100;
-            }
-            return scaled;
         }
 
         public static List<DeviceReading> ScanOnce()
@@ -296,72 +272,6 @@ namespace BatteryTray
                 }
             }
 
-            // 充电判据：插上电源线时，键盘本体会以 258A:00A6（SINO WEALTH "Gaming KB"）挂到 USB 上，
-            // 拔掉后立刻消失。接收器那份状态块自己不区分充放电，只能用这个来判断。
-            bool rkCharging = false;
-            for (int i = 0; i < interfaces.Count; i++)
-            {
-                if (interfaces[i].VendorId == RkWiredVendorId && interfaces[i].ProductId == RkWiredProductId)
-                {
-                    rkCharging = true;
-                    break;
-                }
-            }
-
-            for (int i = 0; i < interfaces.Count; i++)
-            {
-                HidInterface iface = interfaces[i];
-                if (!IsRkFeature(iface))
-                {
-                    continue;
-                }
-                RkCompx link = null;
-                try
-                {
-                    link = RkCompx.Open(iface);
-                    if (link == null)
-                    {
-                        continue;
-                    }
-                    int percent;
-                    string raw;
-                    string error;
-                    DeviceReading reading = new DeviceReading();
-                    reading.Key = "rk:" + iface.Path;
-                    reading.Kind = DeviceKind.Rk;
-                    reading.Name = "RK 键盘";
-                    reading.Online = true;
-                    reading.Updated = DateTime.Now;
-                    if (link.TryReadBattery(out percent, out raw, out error))
-                    {
-                        int shown = ScaleRkPercent(percent);
-                        reading.Percent = BatteryCurve.Clamp(shown);
-                        reading.Raw = raw + (shown != percent ? "  (换算 " + percent + "→" + shown + "%)" : string.Empty);
-                        // 插着线就是充电中（图标画闪电），拔掉后自动回 2.4G，这时显示接收器给的电量。
-                        reading.State = rkCharging
-                            ? (shown >= 100 ? BatteryState.Full : BatteryState.Charging)
-                            : BatteryState.Discharging;
-                    }
-                    else
-                    {
-                        reading.Online = false;
-                        reading.Error = error;
-                        reading.State = BatteryState.Error;
-                    }
-                    result.Add(reading);
-                }
-                catch (Exception)
-                {
-                }
-                finally
-                {
-                    if (link != null)
-                    {
-                        link.Dispose();
-                    }
-                }
-            }
-
             for (int i = 0; i < interfaces.Count; i++)
             {
                 HidInterface iface = interfaces[i];
@@ -434,18 +344,6 @@ namespace BatteryTray
                 && iface.Usage == 0x0002
                 && iface.OutputLength >= 7
                 && iface.InputLength >= 7;
-        }
-
-        // 键盘本体走 USB 线时的 VID/PID（SINO WEALTH "Gaming KB"），只在接电源线时出现。
-        private const ushort RkWiredVendorId = 0x258A;
-        private const ushort RkWiredProductId = 0x00A6;
-
-        private static bool IsRkFeature(HidInterface iface)
-        {
-            return iface.VendorId == 0x25A7
-                && iface.UsagePage == 0xFF02
-                && iface.Usage == 0x0002
-                && iface.FeatureLength > 0;
         }
 
         private static BatteryState InterpretLogitechState(byte flags)

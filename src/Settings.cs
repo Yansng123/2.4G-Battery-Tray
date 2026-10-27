@@ -17,8 +17,6 @@ namespace BatteryTray
         public IconStyle Style = IconStyle.Split;
         public IconLook Look = IconLook.Number;
         public bool DarkMode = false;
-        // RK 键盘的"满电基准"：接收器报的这个数值当作 100%。0 = 不换算，原样显示。
-        public int RkFullValue = 0;
 
         private static string DirectoryPath
         {
@@ -90,14 +88,6 @@ namespace BatteryTray
                             ? IconLook.Plain
                             : IconLook.Number;
                     }
-                    else if (string.Equals(key, "rkfull", StringComparison.OrdinalIgnoreCase))
-                    {
-                        int full;
-                        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out full))
-                        {
-                            settings.RkFullValue = full > 0 ? full : 0;
-                        }
-                    }
                 }
             }
             catch (Exception)
@@ -120,8 +110,6 @@ namespace BatteryTray
                 sb.AppendLine("style=" + (Style == IconStyle.Single ? "single" : "split"));
                 sb.AppendLine("look=" + (Look == IconLook.Plain ? "plain" : "number"));
                 sb.AppendLine("dark=" + (DarkMode ? "1" : "0"));
-                sb.AppendLine("# RK 键盘：把接收器报的这个数值当作 100%（0 = 不换算，原样显示）");
-                sb.AppendLine("rkfull=" + RkFullValue.ToString(CultureInfo.InvariantCulture));
                 File.WriteAllText(FilePath, sb.ToString(), new UTF8Encoding(false));
             }
             catch (Exception)

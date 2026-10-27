@@ -5,7 +5,6 @@ namespace BatteryTray
     internal enum DeviceKind
     {
         Logitech,
-        Rk,
         DualSense
     }
 
